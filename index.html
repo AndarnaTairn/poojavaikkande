@@ -52,7 +52,7 @@ button,input{font:inherit}button{cursor:pointer}.topbar{height:66px;display:flex
 <button class="mode-card selected" data-mode="interactive"><span class="mode-icon">🪔</span><strong>Interactive pooja</strong><small>Light the lamp and offer flowers yourself.</small></button>
 <button class="mode-card" data-mode="automatic"><span class="mode-icon">✨</span><strong>Automatic pooja</strong><small>Watch a gentle altar and flower animation.</small></button>
 </div>
-<div class="audio-row"><div class="audio-copy"><div class="sound-icon">♫</div><div><strong>Soft pooja sounds</strong><small>Optional bell tones · starts only when you begin</small></div></div><label class="switch" aria-label="Enable optional audio"><input id="audioToggle" type="checkbox"><span class="slider"></span></label></div>
+<div class="audio-row"><div class="audio-copy"><div class="sound-icon">♫</div><div><strong>Soft pooja sounds</strong><small>Optional temple bell · starts only when you begin</small></div></div><label class="switch" aria-label="Enable optional audio"><input id="audioToggle" type="checkbox"><span class="slider"></span></label></div>
 <button class="btn btn-primary main-action" id="beginBtn"><span>✦</span> Begin Poojavaeppu</button>
 <div class="secondary-actions"><button class="btn btn-light" id="lampBtn">🪔 Light the lamp</button><button class="btn btn-light" id="flowerBtn">✿ Offer flowers</button></div>
 <div class="message" id="message" role="status" aria-live="polite"></div><div class="ritual-state" id="ritualState">Upload a PDF to place your own book on the altar. You can still explore the pooja without one.</div>
@@ -96,15 +96,40 @@ $('removeBtn').addEventListener('click',()=>{file=null;input.value='';$('fileMet
 ['dragleave','drop'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove('drag')}));
 zone.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f)});
 document.querySelectorAll('.mode-card').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.mode;document.querySelectorAll('.mode-card').forEach(x=>x.classList.toggle('selected',x===b));setMessage('');state.textContent=mode==='interactive'?'Interactive mode: light the lamp and offer flowers, then complete your pooja.':'Automatic mode: begin to watch the lamp, flowers and altar animation.'}));
-function tone(freq=660,duration=.7,volume=.08){
- try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.type='sine';osc.frequency.setValueAtTime(freq,audioCtx.currentTime);gain.gain.setValueAtTime(volume,audioCtx.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+duration);osc.connect(gain);gain.connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+duration)}catch(e){}
+function tone(freq=660,duration=2.4,volume=.07){
+ // A synthesized temple-bell sound: layered resonant partials with a long, natural decay.
+ try{
+   audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();
+   if(audioCtx.state==='suspended')audioCtx.resume();
+   const now=audioCtx.currentTime;
+   const partials=[
+     {ratio:1,level:1,decay:duration},
+     {ratio:2.01,level:.48,decay:duration*.72},
+     {ratio:2.76,level:.28,decay:duration*.54},
+     {ratio:4.08,level:.18,decay:duration*.38},
+     {ratio:5.43,level:.10,decay:duration*.28}
+   ];
+   partials.forEach((p,i)=>{
+     const osc=audioCtx.createOscillator();
+     const gain=audioCtx.createGain();
+     const peak=Math.max(.0001,volume*p.level);
+     osc.type='sine';
+     osc.frequency.setValueAtTime(freq*p.ratio,now);
+     osc.detune.setValueAtTime((i%2===0?1:-1)*(i+1)*1.3,now);
+     gain.gain.setValueAtTime(.0001,now);
+     gain.gain.exponentialRampToValueAtTime(peak,now+.012);
+     gain.gain.exponentialRampToValueAtTime(.0001,now+p.decay);
+     osc.connect(gain);gain.connect(audioCtx.destination);
+     osc.start(now);osc.stop(now+p.decay+.03);
+   });
+ }catch(e){}
 }
-function startSound(){if(!$('audioToggle').checked)return;stopSound();tone(660,1,.06);soundTimer=setInterval(()=>{if($('audioToggle').checked)tone(520+Math.random()*260,.8,.035)},3600)}
+function startSound(){if(!$('audioToggle').checked)return;stopSound();tone(440,2.6,.06);soundTimer=setInterval(()=>{if($('audioToggle').checked)tone(440+Math.random()*90,2.6,.045)},3600)}
 function stopSound(){if(soundTimer)clearInterval(soundTimer);soundTimer=null}
-function lightLamp(){lit=true;lamp.classList.add('lit');setStatus('The lamp is glowing',true);if($('audioToggle').checked)tone(740,1,.07);state.textContent='The lamp is lit. Offer flowers to continue your pooja.'}
-function offerFlowers(){offered=true;for(let i=0;i<14;i++){const p=document.createElement('span');p.className='petal';p.textContent=['✿','❀','✽'][i%3];p.style.left=(12+Math.random()*76)+'%';p.style.top=(20+Math.random()*10)+'%';p.style.animationDelay=(Math.random()*.9)+'s';p.style.color=['#b64c46','#f0bd51','#fff5d9'][i%3];$('altar').appendChild(p);setTimeout(()=>p.remove(),4500)}if($('audioToggle').checked)tone(880,.65,.04);state.textContent='Flowers offered. You can now complete your pooja.'}
+function lightLamp(){lit=true;lamp.classList.add('lit');setStatus('The lamp is glowing',true);if($('audioToggle').checked)tone(440,2.6,.07);state.textContent='The lamp is lit. Offer flowers to continue your pooja.'}
+function offerFlowers(){offered=true;for(let i=0;i<14;i++){const p=document.createElement('span');p.className='petal';p.textContent=['✿','❀','✽'][i%3];p.style.left=(12+Math.random()*76)+'%';p.style.top=(20+Math.random()*10)+'%';p.style.animationDelay=(Math.random()*.9)+'s';p.style.color=['#b64c46','#f0bd51','#fff5d9'][i%3];$('altar').appendChild(p);setTimeout(()=>p.remove(),4500)}if($('audioToggle').checked)tone(520,2.2,.04);state.textContent='Flowers offered. You can now complete your pooja.'}
 $('lampBtn').addEventListener('click',lightLamp);$('flowerBtn').addEventListener('click',offerFlowers);
-function complete(){celebrate.classList.add('show');setStatus('Pooja completed — your learning is celebrated',true);state.textContent='You completed your virtual Poojavaeppu. You can repeat it or choose another mode.';if($('audioToggle').checked){tone(660,.7,.05);setTimeout(()=>tone(880,.9,.05),250)}}
+function complete(){celebrate.classList.add('show');setStatus('Pooja completed — your learning is celebrated',true);state.textContent='You completed your virtual Poojavaeppu. You can repeat it or choose another mode.';if($('audioToggle').checked){tone(440,2.5,.05);setTimeout(()=>tone(520,2.2,.045),450)}}
 $('beginBtn').addEventListener('click',()=>{
  clearTimeout(autoTimer);celebrate.classList.remove('show');setMessage('');
  if(mode==='automatic'){lightLamp();offerFlowers();startSound();state.textContent='Your virtual pooja is in progress. Watch the lamp and flowers.';autoTimer=setTimeout(()=>{complete();stopSound()},4800)}
